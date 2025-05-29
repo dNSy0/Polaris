@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="de" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Polaris</title>
+
+  <!-- ✅ Bootstrap via CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    .subentry-row { background-color: #2c3034; }
+    .subentry-cell { padding-left: 3rem; }
+  </style>
+</head>
+<body class="bg-body-secondary">
+
+<!-- Inhalt wird hier dynamisch durch JavaScript erzeugt -->
+<div class="container mt-5">
+  <h1 class="mb-4 text-center">📦 Polaris</h1>
+
+  <div class="row g-2 mb-3">
+    <div class="col-md-3"><input type="text" id="col1" class="form-control" placeholder="Artikelname"></div>
+    <div class="col-md-3"><input type="number" id="col2" class="form-control" placeholder="Im Lager"></div>
+    <div class="col-md-3"><input type="number" id="col3" class="form-control" placeholder="Wird gebraucht"></div>
+    <div class="col-md-3"><input type="text" id="col4" class="form-control" placeholder="Lagerort"></div>
+  </div>
+
+  <div class="text-center mb-4">
+    <button onclick="addEntry()" class="btn btn-primary">Hinzufügen</button>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-dark table-striped align-middle">
+      <thead class="text-center">
+        <tr>
+          <th>Artikel</th>
+          <th>Im Lager</th>
+          <th>Wird gebraucht</th>
+          <th>Lagerort</th>
+          <th>Aktionen</th>
+        </tr>
+      </thead>
+      <tbody id="entryTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+let entries = JSON.parse(localStorage.getItem("entries")) || [];
+
+function saveEntries() {
+  localStorage.setItem("entries", JSON.stringify(entries));
+}
+
+window.onload = () => {
+  ['col1', 'col2', 'col3', 'col4'].forEach(id => {
+    document.getElementById(id).addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addEntry();
+      }
+    });
+  });
+  loadEntries();
+};
+
+function addEntry() {
+  const col1 = document.getElementById("col1").value.trim();
+  const col2 = document.getElementById("col2").value.trim();
+  const col3 = document.getElementById("col3").value.trim();
+  const col4 = document.getElementById("col4").value.trim();
+  if (!col1 && !col2 && !col3 && !col4) return;
+
+  entries.push({ col1, col2, col3, col4, sub: [] });
+  saveEntries();
+  ["col1", "col2", "col3", "col4"].forEach(id => document.getElementById(id).value = "");
+  loadEntries();
+}
+
+function loadEntries() {
+  const table = document.getElementById("entryTableBody");
+  table.innerHTML = "";
+
+  entries.forEach((entry, index) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><input class="form-control" value="${entry.col1}" onkeypress="if(event.key==='Enter'){updateEntry(${index}, 'col1', this.value)}" /></td>
+      <td><input class="form-control" type="number" value="${entry.col2}" onkeypress="if(event.key==='Enter'){updateEntry(${index}, 'col2', this.value)}" /></td>
+      <td><input class="form-control" type="number" value="${entry.col3}" onkeypress="if(event.key==='Enter'){updateEntry(${index}, 'col3', this.value)}" /></td>
+      <td><input class="form-control" value="${entry.col4}" onkeypress="if(event.key==='Enter'){updateEntry(${index}, 'col4', this.value)}" /></td>
+      <td class="text-nowrap text-center">
+        <button class="btn btn-sm btn-secondary me-1" onclick="toggleSubentries(${index})">Untereinträge</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteEntry(${index})">Löschen</button>
+      </td>
+    `;
+    table.appendChild(row);
+
+    const subRow = document.createElement("tr");
+    subRow.id = "subentries-" + index;
+    subRow.className = "d-none subentry-row";
+    subRow.innerHTML = `
+      <td colspan="5">
+        <div class="mb-2">
+          <strong>Untereinträge:</strong>
+          <button class="btn btn-sm btn-outline-light ms-2" onclick="showSubForm(${index})">+ Untereintrag hinzufügen</button>
+        </div>
+        <div id="subForm-${index}" class="d-none mb-2">
+          <div class="row g-1">
+            <div class="col-md-3"><input class="form-control" id="subTitle-${index}" placeholder="Item"></div>
+            <div class="col-md-2"><input class="form-control" id="subAmount-${index}" type="number" placeholder="Im Lager"></div>
+            <div class="col-md-3"><input class="form-control" id="subNote-${index}" placeholder="Wird gebraucht"></div>
+            <div class="col-md-2"><input class="form-control" id="subLocation-${index}" type="text" placeholder="Fundort"></div>
+            <div class="col-md-2"><button class="btn btn-success w-100" onclick="addSubEntry(${index})">Speichern</button></div>
+          </div>
+        </div>
+        <div id="subList-${index}">${renderSubentries(entry.sub, index)}</div>
+      </td>`;
+    table.appendChild(subRow);
+  });
+}
+
+function updateEntry(index, field, value) {
+  entries[index][field] = value;
+  saveEntries();
+}
+
+function renderSubentries(subentries, parentIndex) {
+  if (!subentries || subentries.length === 0) return "<em>Keine Untereinträge</em>";
+  let html = '<table class="table table-bordered table-sm text-white"><thead><tr><th>Titel</th><th>Menge</th><th>Wird gebraucht</th><th>Lagerort</th><th>Aktionen</th></tr></thead><tbody>';
+  subentries.forEach((s, i) => {
+    html += `<tr>
+      <td><input class="form-control form-control-sm" value="${s.title}" onkeypress="if(event.key==='Enter'){updateSubEntry(${parentIndex}, ${i}, 'title', this.value)}" /></td>
+      <td><input class="form-control form-control-sm" type="number" value="${s.amount || ''}" onkeypress="if(event.key==='Enter'){updateSubEntry(${parentIndex}, ${i}, 'amount', this.value)}" /></td>
+      <td><input class="form-control form-control-sm" value="${s.note || ''}" onkeypress="if(event.key==='Enter'){updateSubEntry(${parentIndex}, ${i}, 'note', this.value)}" /></td>
+      <td><input class="form-control form-control-sm" type="text" value="${s.location || ''}" onkeypress="if(event.key==='Enter'){updateSubEntry(${parentIndex}, ${i}, 'location', this.value)}" /></td>
+      <td><button class="btn btn-sm btn-danger" onclick="deleteSubEntry(${parentIndex}, ${i})">Löschen</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function updateSubEntry(parentIndex, subIndex, field, value) {
+  entries[parentIndex].sub[subIndex][field] = value;
+  saveEntries();
+}
+
+function deleteSubEntry(parentIndex, subIndex) {
+  if (!confirm("Untereintrag wirklich löschen?")) return;
+  entries[parentIndex].sub.splice(subIndex, 1);
+  saveEntries();
+  loadEntries();
+}
+
+function toggleSubentries(index) {
+  const row = document.getElementById(`subentries-${index}`);
+  if (row) row.classList.toggle("d-none");
+}
+
+function showSubForm(index) {
+  document.getElementById(`subForm-${index}`).classList.toggle("d-none");
+}
+
+function addSubEntry(index) {
+  const title = document.getElementById(`subTitle-${index}`).value.trim();
+  const amount = document.getElementById(`subAmount-${index}`).value.trim();
+  const note = document.getElementById(`subNote-${index}`).value.trim();
+  const location = document.getElementById(`subLocation-${index}`).value;
+  if (!title) return alert("Titel ist erforderlich.");
+  entries[index].sub.push({ title, amount, note, location });
+  saveEntries();
+  loadEntries();
+}
+
+function deleteEntry(index) {
+  if (!confirm("Eintrag wirklich löschen?")) return;
+  entries.splice(index, 1);
+  saveEntries();
+  loadEntries();
+}
+
+// ⏱️ Automatisches Speichern alle 5 Minuten
+setInterval(() => {
+  localStorage.setItem("entries", JSON.stringify(entries));
+  console.log("🔁 Auto-Speichern durchgeführt");
+}, 5 * 60 * 1000);
+</script>
+
+</body>
+</html>
